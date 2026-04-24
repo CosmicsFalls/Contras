@@ -2,100 +2,95 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
-    <title>Contra S26 Fix Final</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, viewport-fit=cover">
+    <title>Contra S26 Ultra Fix</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.60.0/phaser.min.js"></script>
     <style>
-        body { margin: 0; background: #000; overflow: hidden; touch-action: none; display: flex; justify-content: center; align-items: center; height: 100vh; color: white; font-family: sans-serif; }
-        #ui-layer { position: absolute; z-index: 100; text-align: center; }
-        .btn-play { padding: 25px 50px; font-size: 24px; background: #e91e63; color: white; border: none; border-radius: 50px; font-weight: bold; box-shadow: 0 0 20px rgba(233,30,99,0.5); }
-        canvas { border: 1px solid #333; }
+        body { margin: 0; background: #111; overflow: hidden; touch-action: none; display: flex; justify-content: center; align-items: center; height: 100vh; }
+        canvas { 
+            image-rendering: -moz-crisp-edges;
+            image-rendering: -webkit-optimize-contrast;
+            image-rendering: pixelated;
+            image-rendering: crisp-edges;
+            box-shadow: 0 0 20px rgba(0,0,0,0.5);
+        }
+        #btn-overlay { 
+            position: absolute; z-index: 99; background: #007bff; color: white; 
+            padding: 20px; border-radius: 10px; font-family: sans-serif; font-weight: bold;
+        }
     </style>
 </head>
 <body>
 
-    <div id="ui-layer">
-        <button class="btn-play" id="launch">CARGAR MISIÓN</button>
-    </div>
-    <div id="phaser-app"></div>
+    <div id="btn-overlay">INICIAR MISIÓN</div>
+    <div id="game-container"></div>
 
 <script>
-document.getElementById('launch').onclick = function() {
-    this.parentElement.style.display = 'none';
+const startBtn = document.getElementById('btn-overlay');
+
+startBtn.onclick = () => {
+    startBtn.style.display = 'none';
     
     const config = {
-        type: Phaser.CANVAS, // Obligatorio para S26 para evitar pantalla negra
-        parent: 'phaser-app',
+        type: Phaser.CANVAS, 
+        parent: 'game-container',
         width: 800,
         height: 450,
-        backgroundColor: '#111',
+        backgroundColor: '#000000',
+        render: {
+            pixelArt: true, // Evita que se vea borroso o con líneas
+            antialias: false,
+            transparent: false
+        },
         scale: {
-            mode: Phaser.Scale.FIT,
+            mode: Phaser.Scale.FIT, // Ajuste perfecto al ancho del S26
             autoCenter: Phaser.Scale.CENTER_BOTH
         },
         physics: {
             default: 'arcade',
-            arcade: { gravity: { y: 1000 } }
+            arcade: { gravity: { y: 1200 } }
         },
         scene: { preload: preload, create: create, update: update }
     };
 
-    new Phaser.Game(config);
+    const game = new Phaser.Game(config);
 };
 
-let player, moveL = false, moveR = false;
-
 function preload() {
-    // Creamos las texturas aquí mismo para no depender de archivos externos
-    let graphics = this.make.graphics();
-    
-    // Jugador (Cubo Azul)
-    graphics.fillStyle(0x00aaff);
-    graphics.fillRect(0, 0, 30, 45);
-    graphics.generateTexture('hero', 30, 45);
-    graphics.clear();
-
-    // Suelo (Verde)
-    graphics.fillStyle(0x228b22);
-    graphics.fillRect(0, 0, 32, 32);
-    graphics.generateTexture('floor', 32, 32);
+    let g = this.make.graphics();
+    // Jugador Azul
+    g.fillStyle(0x007bff); g.fillRect(0,0,30,45); g.generateTexture('p',30,45);
+    g.clear();
+    // Suelo Verde
+    g.fillStyle(0x2d5a27); g.fillRect(0,0,32,32); g.generateTexture('g',32,32);
 }
 
 function create() {
-    // Crear suelo
     let platforms = this.physics.add.staticGroup();
-    for (let i = 0; i < 100; i++) {
-        platforms.create(i * 32, 435, 'floor').refresh();
+    // Suelo sólido
+    for (let i = 0; i < 60; i++) {
+        platforms.create(i * 32, 435, 'g').refresh();
     }
+    
+    this.player = this.physics.add.sprite(100, 300, 'p').setCollideWorldBounds(true);
+    this.physics.add.collider(this.player, platforms);
 
-    // Crear jugador
-    player = this.physics.add.sprite(100, 300, 'hero');
-    player.setCollideWorldBounds(true);
-    this.physics.add.collider(player, platforms);
+    this.moveX = 0;
 
-    // Controles táctiles invisibles (Pantalla partida)
-    // Lado izquierdo = Mover / Lado derecho = Saltar
-    this.input.on('pointerdown', (pointer) => {
-        if (pointer.x < 400) {
-            if (pointer.x < 200) moveL = true;
-            else moveR = true;
+    // Control táctil: Izquierda/Derecha para mover, arriba de la mitad para saltar
+    this.input.on('pointerdown', (p) => {
+        if (p.x < 400) {
+            this.moveX = (p.x < 200) ? -250 : 250;
         } else {
-            if (player.body.touching.down) player.setVelocityY(-550);
+            if (this.player.body.touching.down) this.player.setVelocityY(-600);
         }
     });
 
-    this.input.on('pointerup', () => {
-        moveL = false;
-        moveR = false;
-    });
-
-    this.add.text(10, 10, 'Toca Izquierda/Derecha para caminar. Derecha arriba para saltar.', { fontSize: '16px', fill: '#fff' });
+    this.input.on('pointerup', () => this.moveX = 0);
 }
 
 function update() {
-    if (moveL) player.setVelocityX(-250);
-    else if (moveR) player.setVelocityX(250);
-    else player.setVelocityX(0);
+    this.player.setVelocityX(this.moveX);
 }
 </script>
 </body>
