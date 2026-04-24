@@ -3,141 +3,86 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
-    <title>Contra Mobile</title>
+    <title>Contra Debug</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.60.0/phaser.min.js"></script>
     <style>
-        body { margin: 0; background: #000; overflow: hidden; touch-action: none; color: white; font-family: sans-serif; }
-        #game-container { display: flex; justify-content: center; align-items: center; height: 100vh; }
+        body { margin: 0; background: #222; overflow: hidden; touch-action: none; }
+        #game-container { width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; }
     </style>
 </head>
 <body>
     <div id="game-container"></div>
 
 <script>
-// Verificación rápida para ver si Phaser cargó
-if (typeof Phaser === 'undefined') {
-    document.getElementById('game-container').innerHTML = '<h1>Error: No se pudo cargar Phaser. Revisa tu conexión.</h1>';
-}
-
+// Forzamos CANVAS para máxima compatibilidad en móviles
 const config = {
-    type: Phaser.AUTO,
+    type: Phaser.CANVAS, 
     width: 800,
     height: 450,
     parent: 'game-container',
     backgroundColor: '#111',
     physics: { 
         default: 'arcade', 
-        arcade: { gravity: { y: 1000 }, debug: false } 
+        arcade: { gravity: { y: 1000 } } 
     },
     scene: { preload: preload, create: create, update: update }
 };
 
-const game = new Phaser.Game(config);
+// Intentar iniciar el juego y capturar errores
+try {
+    const game = new Phaser.Game(config);
+} catch (e) {
+    alert("Error al iniciar el juego: " + e.message);
+}
+
 let player, platforms, bullets, enemies, cursors;
 let moveLeft = false, moveRight = false;
 
 function preload() {
-    // Generar texturas directamente para no depender de archivos externos
     const graphics = this.make.graphics();
-
-    // Jugador (Azul)
+    // Jugador
     graphics.fillStyle(0x007bff);
     graphics.fillRect(0, 0, 30, 45);
     graphics.generateTexture('player', 30, 45);
     graphics.clear();
-
-    // Enemigo Básico (Rojo)
-    graphics.fillStyle(0xff4444);
-    graphics.fillRect(0, 0, 30, 45);
-    graphics.generateTexture('soldier', 30, 45);
-    graphics.clear();
-
-    // Enemigo Rápido (Naranja)
-    graphics.fillStyle(0xffbb33);
-    graphics.fillRect(0, 0, 18, 35);
-    graphics.generateTexture('scout', 18, 35);
-    graphics.clear();
-
-    // Enemigo Tanque (Púrpura)
-    graphics.fillStyle(0xaa66cc);
-    graphics.fillRect(0, 0, 55, 40);
-    graphics.generateTexture('tank', 55, 40);
-    graphics.clear();
-
-    // Suelo (Verde)
+    // Suelo
     graphics.fillStyle(0x2d5a27);
     graphics.fillRect(0, 0, 32, 32);
     graphics.generateTexture('ground', 32, 32);
     graphics.clear();
-
-    // Bala (Amarillo)
-    graphics.fillStyle(0xffff00);
-    graphics.fillRect(0, 0, 12, 6);
-    graphics.generateTexture('bullet', 12, 6);
+    // Enemigo
+    graphics.fillStyle(0xff4444);
+    graphics.fillRect(0, 0, 30, 45);
+    graphics.generateTexture('soldier', 30, 45);
 }
 
 function create() {
     platforms = this.physics.add.staticGroup();
-    // Suelo largo
-    for (let i = 0; i < 100; i++) {
+    for (let i = 0; i < 50; i++) {
         platforms.create(i * 32, 435, 'ground').refresh();
     }
-    // Plataformas elevadas
-    platforms.create(400, 300, 'ground').setScale(5, 0.5).refresh();
-    platforms.create(800, 220, 'ground').setScale(5, 0.5).refresh();
 
     player = this.physics.add.sprite(100, 300, 'player');
     player.setCollideWorldBounds(true);
     this.physics.add.collider(player, platforms);
 
-    // Cámara
-    this.cameras.main.setBounds(0, 0, 3000, 450);
-    this.physics.world.setBounds(0, 0, 3000, 450);
-    this.cameras.main.startFollow(player, true, 0.1, 0.1);
+    this.cameras.main.setBounds(0, 0, 1600, 450);
+    this.cameras.main.startFollow(player);
 
-    // Combate
-    bullets = this.physics.add.group();
-    enemies = this.physics.add.group();
-
-    const spawn = (x, y, type, speed, hp) => {
-        let e = enemies.create(x, y, type);
-        e.setData({ speed: speed, health: hp });
-        e.setCollideWorldBounds(true);
-    };
-
-    spawn(700, 300, 'soldier', 120, 1);
-    spawn(1200, 300, 'scout', 280, 1);
-    spawn(1800, 300, 'tank', 60, 5);
-
-    this.physics.add.collider(enemies, platforms);
-    this.physics.add.overlap(bullets, enemies, (bullet, enemy) => {
-        bullet.destroy();
-        let hp = enemy.getData('health') - 1;
-        enemy.setData('health', hp);
-        if (hp <= 0) enemy.destroy();
-    });
-
-    // Botones Táctiles
+    // Botones (Texto más grande para móvil)
     const addBtn = (x, y, txt, press, release) => {
         let b = this.add.text(x, y, txt, { 
-            fontSize: '28px', backgroundColor: '#444', padding: 15, borderRadius: '10px' 
+            fontSize: '40px', backgroundColor: '#444', padding: 20 
         }).setInteractive().setScrollFactor(0).setAlpha(0.8);
         b.on('pointerdown', press);
-        if(release) {
-            b.on('pointerup', release);
-            b.on('pointerout', release);
-        }
+        b.on('pointerup', release);
+        b.on('pointerout', release);
     };
 
-    addBtn(20, 350, ' ← ', () => moveLeft = true, () => moveLeft = false);
-    addBtn(130, 350, ' → ', () => moveRight = true, () => moveRight = false);
-    addBtn(550, 350, ' SALT ', () => { if(player.body.touching.down) player.setVelocityY(-550); });
-    addBtn(700, 350, ' FIRE ', () => {
-        let b = bullets.create(player.x + 25, player.y, 'bullet');
-        b.body.allowGravity = false;
-        b.setVelocityX(600);
-    });
-
+    addBtn(10, 330, ' L ', () => moveLeft = true, () => moveLeft = false);
+    addBtn(150, 330, ' R ', () => moveRight = true, () => moveRight = false);
+    addBtn(500, 330, ' JUMP ', () => { if(player.body.touching.down) player.setVelocityY(-550); });
+    
     cursors = this.input.keyboard.createCursorKeys();
 }
 
@@ -145,14 +90,6 @@ function update() {
     if (moveLeft || cursors.left.isDown) player.setVelocityX(-250);
     else if (moveRight || cursors.right.isDown) player.setVelocityX(250);
     else player.setVelocityX(0);
-
-    enemies.getChildren().forEach(e => {
-        let dist = Phaser.Math.Distance.Between(player.x, player.y, e.x, e.y);
-        if (dist < 400) {
-            if (player.x < e.x) e.setVelocityX(-e.getData('speed'));
-            else e.setVelocityX(e.getData('speed'));
-        }
-    });
 }
 </script>
 </body>
