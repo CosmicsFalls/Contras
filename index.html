@@ -3,59 +3,57 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
-    <title>Contra S26 Total Fix</title>
-    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser-ce.min.js"></script>
+    <title>Contra S26 Unstoppable</title>
+    <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.60.0/phaser.min.js"></script>
     <style>
-        body { margin: 0; background: #000; overflow: hidden; touch-action: none; color: white; font-family: sans-serif; display: flex; justify-content: center; align-items: center; height: 100vh; }
-        #game-container { width: 800px; height: 450px; background: #111; display: none; }
-        #error-ui { text-align: center; padding: 20px; }
-        .btn { padding: 15px 30px; background: #007bff; color: white; border: none; border-radius: 8px; font-size: 18px; cursor: pointer; margin-top: 10px; }
+        body { margin: 0; background: #000; color: white; font-family: sans-serif; overflow: hidden; touch-action: none; }
+        #screen { width: 100vw; height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        #game-canvas { display: none; }
+        .btn-start { padding: 25px 50px; background: #05f; color: white; border: none; border-radius: 15px; font-size: 22px; font-weight: bold; }
     </style>
 </head>
 <body>
-    <div id="error-ui">
-        <h2 id="status">Verificando...</h2>
-        <p id="sub-status">Si ves esto, espera 3 segundos.</p>
-        <button id="start-btn" class="btn" style="display:none">JUGAR AHORA</button>
+
+<div id="screen">
+    <div id="status-box">
+        <h2 id="title">CONTRA S26</h2>
+        <p id="info">Iniciando sistemas...</p>
+        <button id="boot-btn" class="btn-start" style="display:none">INICIAR MISIÓN</button>
     </div>
-    <div id="game-container"></div>
+</div>
+<div id="game-canvas"></div>
 
 <script>
-window.addEventListener('load', () => {
-    const status = document.getElementById('status');
-    const sub = document.getElementById('sub-status');
-    const btn = document.getElementById('start-btn');
+// Verificación agresiva
+let checkInterval = setInterval(() => {
+    const info = document.getElementById('info');
+    const btn = document.getElementById('boot-btn');
+    
+    if (typeof Phaser !== 'undefined') {
+        info.innerHTML = "✅ MOTOR LISTO";
+        info.style.color = "#0f0";
+        btn.style.display = "block";
+        clearInterval(checkInterval);
+    } else {
+        info.innerHTML = "⌛ Esperando motor...<br><small>Si no cambia, activa Datos Móviles</small>";
+    }
+}, 500);
 
-    // Intentar detectar Phaser con un pequeño retraso
-    setTimeout(() => {
-        if (typeof Phaser === 'undefined') {
-            status.innerHTML = "❌ SIGUE BLOQUEADO";
-            sub.innerHTML = "Tu S26 tiene un filtro de red activo.<br><b>PRUEBA ESTO:</b> Apaga el WiFi y usa tus Datos Móviles.";
-            status.style.color = "#ff4444";
-        } else {
-            status.innerHTML = "✅ MOTOR CARGADO";
-            sub.innerHTML = "Presiona el botón para entrar al juego.";
-            btn.style.display = "inline-block";
-        }
-    }, 1000);
-});
-
-document.getElementById('start-btn').onclick = function() {
-    document.getElementById('error-ui').style.display = 'none';
-    document.getElementById('game-container').style.display = 'block';
+document.getElementById('boot-btn').onclick = function() {
+    document.getElementById('screen').style.display = 'none';
+    document.getElementById('game-canvas').style.display = 'block';
     
     const config = {
-        type: Phaser.CANVAS,
+        type: Phaser.CANVAS, // Lo más seguro para el S26
         width: 800,
         height: 450,
-        parent: 'game-container',
+        parent: 'game-canvas',
         physics: { default: 'arcade', arcade: { gravity: { y: 1000 } } },
         scene: { preload: preload, create: create, update: update }
     };
     new Phaser.Game(config);
 };
-
-let player, platforms, moveLeft = false, moveRight = false;
 
 function preload() {
     let g = this.make.graphics();
@@ -65,25 +63,33 @@ function preload() {
 }
 
 function create() {
-    platforms = this.physics.add.staticGroup();
-    for (let i = 0; i < 50; i++) platforms.create(i * 32, 435, 'g').refresh();
-    player = this.physics.add.sprite(100, 300, 'p').setCollideWorldBounds(true);
+    this.add.text(10, 10, "Misión: Infiltración", { fontSize: '20px' });
+    let platforms = this.physics.add.staticGroup();
+    for (let i = 0; i < 60; i++) platforms.create(i * 32, 435, 'g').refresh();
+    
+    let player = this.physics.add.sprite(100, 300, 'p').setCollideWorldBounds(true);
     this.physics.add.collider(player, platforms);
 
-    const makeBtn = (x, y, txt, dn, up) => {
-        let b = this.add.text(x, y, txt, { fontSize: '40px', backgroundColor: '#333', padding: 20 }).setInteractive().setScrollFactor(0);
-        b.on('pointerdown', dn); b.on('pointerup', up).on('pointerout', up);
+    // Controles táctiles simplificados
+    const createBtn = (x, y, txt, moveVal) => {
+        let b = this.add.text(x, y, txt, { fontSize: '40px', backgroundColor: '#333', padding: 20 })
+            .setInteractive().setScrollFactor(0);
+        b.on('pointerdown', () => player.setData('mv', moveVal));
+        b.on('pointerup', () => player.setData('mv', 0));
     };
 
-    makeBtn(50, 330, ' ← ', () => moveLeft = true, () => moveLeft = false);
-    makeBtn(180, 330, ' → ', () => moveRight = true, () => moveRight = false);
-    makeBtn(600, 330, ' SALTO ', () => { if(player.body.touching.down) player.setVelocityY(-550) });
+    createBtn(50, 330, " ← ", -250);
+    createBtn(200, 330, " → ", 250);
+    
+    let jumpBtn = this.add.text(600, 330, " SALT ", { fontSize: '40px', backgroundColor: '#333', padding: 20 })
+        .setInteractive().setScrollFactor(0);
+    jumpBtn.on('pointerdown', () => { if(player.body.touching.down) player.setVelocityY(-550); });
 }
 
 function update() {
-    if (moveLeft) player.setVelocityX(-250);
-    else if (moveRight) player.setVelocityX(250);
-    else player.setVelocityX(0);
+    let mv = this.children.list.find(c => c.texture && c.texture.key === 'p').getData('mv');
+    if (mv) this.children.list.find(c => c.texture && c.texture.key === 'p').setVelocityX(mv);
+    else this.children.list.find(c => c.texture && c.texture.key === 'p').setVelocityX(0);
 }
 </script>
 </body>
