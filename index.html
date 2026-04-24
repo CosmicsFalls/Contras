@@ -3,74 +3,94 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
-    <title>Contra Chrome Fix</title>
+    <title>Contra S26 Ultra</title>
     <script src="https://unpkg.com/phaser@3.60.0/dist/phaser.min.js"></script>
     <style>
-        body { margin: 0; background: #111; overflow: hidden; touch-action: none; color: white; font-family: sans-serif; }
-        #game-container { width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; }
-        #status-bar { position: absolute; top: 0; width: 100%; text-align: center; background: rgba(0,0,0,0.5); padding: 5px; z-index: 10; font-size: 12px; }
+        body { margin: 0; background: #000; overflow: hidden; touch-action: none; }
+        #game-container { width: 100vw; height: 100vh; }
     </style>
 </head>
 <body>
-    <div id="status-bar">Iniciando motor...</div>
     <div id="game-container"></div>
 <script>
-// Verificador de carga para Chrome
-window.addEventListener('load', function() {
-    const status = document.getElementById('status-bar');
-    if (typeof Phaser === 'undefined') {
-        status.innerHTML = "❌ ERROR: Chrome bloqueó el script. Prueba: Configuración -> Privacidad -> Desactivar Protección Mejorada.";
-        status.style.color = "#ff4444";
-    } else {
-        status.innerHTML = "✅ Motor Phaser cargado en Chrome";
-        setTimeout(() => { status.style.display = 'none'; }, 2000);
-    }
-});
-
 const config = {
     type: Phaser.AUTO,
     width: 800,
     height: 450,
     parent: 'game-container',
-    backgroundColor: '#1a1a1a',
     physics: { default: 'arcade', arcade: { gravity: { y: 1000 } } },
     scene: { preload: preload, create: create, update: update }
 };
 
-let player, platforms, moveLeft = false, moveRight = false;
+const game = new Phaser.Game(config);
+let player, platforms, bullets, enemy, moveLeft = false, moveRight = false;
 
 function preload() {
     let g = this.make.graphics();
-    // Jugador
-    g.fillStyle(0x007bff); g.fillRect(0,0,30,45); g.generateTexture('p',30,45);
-    g.clear();
-    // Suelo
-    g.fillStyle(0x2d5a27); g.fillRect(0,0,32,32); g.generateTexture('g',32,32);
+    // Texturas rápidas
+    const draw = (k, w, h, c) => {
+        g.clear(); g.fillStyle(c); g.fillRect(0,0,w,h); g.generateTexture(k,w,h);
+    };
+    draw('p', 30, 45, 0x007bff); // Prota
+    draw('e', 30, 45, 0xff4444); // Enemigo
+    draw('g', 32, 32, 0x224422); // Suelo
+    draw('b', 12, 6, 0xffff00);  // Bala
 }
 
 function create() {
     platforms = this.physics.add.staticGroup();
-    for (let i = 0; i < 60; i++) platforms.create(i * 32, 435, 'g').refresh();
-    
-    player = this.physics.add.sprite(100, 300, 'p').setCollideWorldBounds(true);
+    // Suelo extra largo para correr
+    for (let i = 0; i < 150; i++) platforms.create(i * 32, 435, 'g').refresh();
+
+    player = this.physics.add.sprite(100, 300, 'p').setCollideWorldBounds(false);
     this.physics.add.collider(player, platforms);
 
+    // Cámara que sigue al jugador
+    this.cameras.main.setBounds(0, 0, 4000, 450);
+    this.physics.world.setBounds(0, 0, 4000, 450);
+    this.cameras.main.startFollow(player, true, 0.1, 0.1);
+
+    bullets = this.physics.add.group();
+    enemy = this.physics.add.sprite(600, 300, 'e');
+    this.physics.add.collider(enemy, platforms);
+
+    // Botones (Más grandes para el S26)
     const addBtn = (x, y, txt, dn, up) => {
-        let b = this.add.text(x, y, txt, { fontSize: '38px', backgroundColor: '#444', padding: 15 })
-            .setInteractive().setScrollFactor(0);
+        let b = this.add.text(x, y, txt, { fontSize: '35px', backgroundColor: '#333', padding: 20 })
+            .setInteractive().setScrollFactor(0).setAlpha(0.8);
         b.on('pointerdown', dn);
         if(up) b.on('pointerup', up).on('pointerout', up);
     };
 
-    addBtn(40, 330, ' ← ', () => moveLeft = true, () => moveLeft = false);
-    addBtn(160, 330, ' → ', () => moveRight = true, () => moveRight = false);
-    addBtn(600, 330, ' SALT ', () => { if(player.body.touching.down) player.setVelocityY(-550) });
+    addBtn(20, 320, ' ← ', () => moveLeft = true, () => moveLeft = false);
+    addBtn(150, 320, ' → ', () => moveRight = true, () => moveRight = false);
+    addBtn(520, 320, ' SALT ', () => { if(player.body.touching.down) player.setVelocityY(-550) });
+    addBtn(680, 320, ' FUEGO ', () => {
+        let b = bullets.create(player.x + 20, player.y, 'b');
+        b.body.allowGravity = false;
+        b.setVelocityX(600);
+    });
+
+    // Colisión bala-enemigo
+    this.physics.add.overlap(bullets, enemy, (bul, en) => {
+        en.setTint(0xffffff);
+        setTimeout(() => en.destroy(), 100);
+        bul.destroy();
+    });
 }
 
 function update() {
     if (moveLeft) player.setVelocityX(-250);
     else if (moveRight) player.setVelocityX(250);
     else player.setVelocityX(0);
+
+    // Inteligencia simple del enemigo: te sigue si estás cerca
+    if (enemy.active) {
+        let dist = player.x - enemy.x;
+        if (Math.abs(dist) < 300) {
+            enemy.setVelocityX(dist > 0 ? 100 : -100);
+        }
+    }
 }
 </script>
 </body>
