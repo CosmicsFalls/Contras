@@ -1,82 +1,112 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
-    <title>Contra Ultra-Compat</title>
+    <title>Contra S26 Edition</title>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
     <style>
-        body { margin: 0; background: red; overflow: hidden; touch-action: none; }
-        canvas { cursor: crosshair; }
+        body { margin: 0; background: #000; overflow: hidden; touch-action: none; }
+        #game-container { width: 100vw; height: 100vh; }
     </style>
 </head>
 <body>
+    <div id="game-container"></div>
 <script>
-// Configuración simplificada al extremo
 const config = {
-    type: Phaser.AUTO, // Dejamos que el motor decida lo mejor
+    type: Phaser.AUTO, // El S26 usará WebGL automáticamente
     width: 800,
     height: 450,
-    backgroundColor: '#1a1a1a', // Gris casi negro
+    parent: 'game-container',
     physics: { 
         default: 'arcade', 
-        arcade: { gravity: { y: 1000 } } 
+        arcade: { gravity: { y: 1000 }, fps: 120 } // Optimizado para 120Hz
     },
     scene: { preload: preload, create: create, update: update }
 };
 
 const game = new Phaser.Game(config);
-let player, platforms, moveLeft = false, moveRight = false, cursors;
+let player, platforms, bullets, enemies, cursors;
+let moveLeft = false, moveRight = false;
 
 function preload() {
-    // Generar texturas de emergencia si no hay imágenes
-    let graphics = this.make.graphics();
-    
-    // Jugador (Rectángulo Azul)
-    graphics.fillStyle(0x00aaff, 1);
-    graphics.fillRect(0, 0, 32, 48);
-    graphics.generateTexture('p', 32, 48);
-    graphics.clear();
-
-    // Suelo (Rectángulo Verde)
-    graphics.fillStyle(0x00ff00, 1);
-    graphics.fillRect(0, 0, 32, 32);
-    graphics.generateTexture('g', 32, 32);
+    const graphics = this.make.graphics();
+    // Generar texturas
+    const draw = (key, w, h, col) => {
+        graphics.clear(); graphics.fillStyle(col);
+        graphics.fillRect(0, 0, w, h);
+        graphics.generateTexture(key, w, h);
+    };
+    draw('p', 30, 45, 0x007bff);   // Jugador
+    draw('s', 30, 45, 0xff4444);   // Soldado
+    draw('sc', 18, 35, 0xffbb33);  // Scout
+    draw('t', 55, 40, 0xaa66cc);   // Tank
+    draw('g', 32, 32, 0x2d5a27);   // Suelo
+    draw('b', 12, 6, 0xffff00);    // Bala
 }
 
 function create() {
-    // Fondo de éxito (Verde oscuro para saber que cargó Phaser)
-    this.cameras.main.setBackgroundColor('#0e230e');
-
     platforms = this.physics.add.staticGroup();
-    // Crear suelo
-    for (let i = 0; i < 40; i++) {
-        platforms.create(i * 32, 434, 'g').refresh();
-    }
+    for (let i = 0; i < 100; i++) platforms.create(i * 32, 435, 'g').refresh();
+    platforms.create(400, 300, 'g').setScale(5, 0.5).refresh();
 
-    player = this.physics.add.sprite(100, 200, 'p');
-    player.setCollideWorldBounds(true);
+    player = this.physics.add.sprite(100, 300, 'p').setCollideWorldBounds(true);
     this.physics.add.collider(player, platforms);
 
-    // Botones ultra-simples (Texto plano)
-    let bL = this.add.text(50, 350, 'IZQ', { fontSize: '40px', fill: '#fff', backgroundColor: '#333' })
-        .setInteractive().setScrollFactor(0);
-    let bR = this.add.text(200, 350, 'DER', { fontSize: '40px', fill: '#fff', backgroundColor: '#333' })
-        .setInteractive().setScrollFactor(0);
-    let bJ = this.add.text(600, 350, 'SALT', { fontSize: '40px', fill: '#fff', backgroundColor: '#333' })
-        .setInteractive().setScrollFactor(0);
+    this.cameras.main.setBounds(0, 0, 3000, 450);
+    this.cameras.main.startFollow(player, true, 0.1, 0.1);
 
-    bL.on('pointerdown', () => moveLeft = true).on('pointerup', () => moveLeft = false);
-    bR.on('pointerdown', () => moveRight = true).on('pointerup', () => moveRight = false);
-    bJ.on('pointerdown', () => { if(player.body.touching.down) player.setVelocityY(-500); });
+    bullets = this.physics.add.group();
+    enemies = this.physics.add.group();
+
+    const spawn = (x, y, type, speed, hp) => {
+        let e = enemies.create(x, y, type);
+        e.setData({ speed: speed, health: hp }).setCollideWorldBounds(true);
+    };
+
+    spawn(700, 300, 's', 120, 1);
+    spawn(1200, 300, 'sc', 280, 1);
+    spawn(1800, 300, 't', 60, 5);
+
+    this.physics.add.collider(enemies, platforms);
+    this.physics.add.overlap(bullets, enemies, (b, e) => {
+        b.destroy();
+        let hp = e.getData('health') - 1;
+        e.setData('health', hp);
+        if (hp <= 0) e.destroy();
+    });
+
+    // Botones Táctiles
+    const addBtn = (x, y, txt, fnDown, fnUp) => {
+        let b = this.add.text(x, y, txt, { fontSize: '32px', backgroundColor: '#444', padding: 15 })
+            .setInteractive().setScrollFactor(0).setAlpha(0.7);
+        b.on('pointerdown', fnDown);
+        if(fnUp) b.on('pointerup', fnUp).on('pointerout', fnUp);
+    };
+
+    addBtn(20, 340, ' ← ', () => moveLeft = true, () => moveLeft = false);
+    addBtn(140, 340, ' → ', () => moveRight = true, () => moveRight = false);
+    addBtn(550, 340, ' SALT ', () => { if(player.body.touching.down) player.setVelocityY(-550) });
+    addBtn(700, 340, ' FUEGO ', () => {
+        let b = bullets.create(player.x + 25, player.y, 'b');
+        b.body.allowGravity = false; b.setVelocityX(600);
+    });
 
     cursors = this.input.keyboard.createCursorKeys();
 }
 
 function update() {
-    if (moveLeft || cursors.left.isDown) player.setVelocityX(-200);
-    else if (moveRight || cursors.right.isDown) player.setVelocityX(200);
+    if (moveLeft || cursors.left.isDown) player.setVelocityX(-250);
+    else if (moveRight || cursors.right.isDown) player.setVelocityX(250);
     else player.setVelocityX(0);
+
+    enemies.getChildren().forEach(e => {
+        let dist = Phaser.Math.Distance.Between(player.x, player.y, e.x, e.y);
+        if (dist < 400) {
+            if (player.x < e.x) e.setVelocityX(-e.getData('speed'));
+            else e.setVelocityX(e.getData('speed'));
+        }
+    });
 }
 </script>
 </body>
