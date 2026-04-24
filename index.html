@@ -3,86 +3,78 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
-    <title>Contra Ultra Fix</title>
-    <script src="https://ajax.googleapis.com/ajax/libs/phaser/3.60.0/phaser.min.js"></script>
+    <title>Contra S26 Final Fix</title>
+    
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+    <script>window.Phaser || document.write('<script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.60.0/phaser.min.js"><\/script>')</script>
+    <script>window.Phaser || document.write('<script src="https://unpkg.com/phaser@3.60.0/dist/phaser.min.js"><\/script>')</script>
+
     <style>
-        body { margin: 0; background: #000; overflow: hidden; touch-action: none; font-family: sans-serif; }
-        #game-container { width: 100vw; height: 100vh; }
-        #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
-                   background: rgba(0,0,0,0.8); display: flex; flex-direction: column; 
-                   justify-content: center; align-items: center; z-index: 100; color: white; }
-        button { padding: 20px 40px; font-size: 20px; cursor: pointer; border-radius: 10px; border: none; background: #007bff; color: white; }
+        body { margin: 0; background: #111; overflow: hidden; touch-action: none; color: white; font-family: sans-serif; }
+        #game-container { width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; }
+        #debug { position: absolute; top: 50%; width: 100%; text-align: center; transform: translateY(-50%); }
+        button { padding: 20px; font-size: 20px; background: #007bff; color: white; border: none; border-radius: 10px; cursor: pointer; }
     </style>
 </head>
 <body>
-    <div id="overlay">
-        <h2>CONTRA MOBILE</h2>
-        <p id="msg">Cargando...</p>
-        <button id="start-btn" style="display:none">JUGAR AHORA</button>
+    <div id="debug">
+        <p id="status">Cargando Motor...</p>
+        <button id="play-btn" style="display:none">INICIAR JUEGO</button>
     </div>
     <div id="game-container"></div>
 
 <script>
-// Verificador de seguridad
-window.addEventListener('load', () => {
-    const msg = document.getElementById('msg');
-    const btn = document.getElementById('start-btn');
-    
+window.onload = () => {
+    const status = document.getElementById('status');
+    const btn = document.getElementById('play-btn');
+
     if (typeof Phaser === 'undefined') {
-        msg.innerHTML = "❌ Error: El navegador bloqueó el motor.<br>Prueba en Modo Incógnito o usa Datos Móviles.";
-        msg.style.color = "red";
+        status.innerHTML = "❌ ERROR CRÍTICO:<br>Tu Samsung bloqueó todas las fuentes.<br><br>SOLUCIÓN:<br>1. Ve a Ajustes del Chrome.<br>2. Privacidad y Seguridad.<br>3. Desactiva 'Navegación Segura Mejorada'.";
+        status.style.color = "#ff6666";
     } else {
-        msg.innerHTML = "✅ Motor listo.";
-        btn.style.display = "block";
+        status.innerHTML = "✅ Motor Listo en S26";
+        btn.style.display = "inline-block";
     }
-});
+};
 
-document.getElementById('start-btn').addEventListener('click', () => {
-    document.getElementById('overlay').style.display = 'none';
-    iniciarJuego();
-});
-
-function iniciarJuego() {
+document.getElementById('play-btn').onclick = () => {
+    document.getElementById('debug').style.display = 'none';
+    
     const config = {
-        type: Phaser.AUTO,
+        type: Phaser.CANVAS, // Obligatorio para evitar pantalla negra en S26
         width: 800,
         height: 450,
         parent: 'game-container',
+        backgroundColor: '#000',
         physics: { default: 'arcade', arcade: { gravity: { y: 1000 } } },
         scene: { preload: preload, create: create, update: update }
     };
     new Phaser.Game(config);
-}
+};
 
-let player, platforms, bullets, enemy, moveLeft = false, moveRight = false;
+let player, platforms, moveLeft = false, moveRight = false;
 
 function preload() {
     let g = this.make.graphics();
-    const draw = (k, w, h, c) => {
-        g.clear(); g.fillStyle(c); g.fillRect(0,0,w,h); g.generateTexture(k,w,h);
-    };
-    draw('p', 30, 45, 0x007bff); draw('e', 30, 45, 0xff4444);
-    draw('g', 32, 32, 0x224422); draw('b', 12, 6, 0xffff00);
+    g.fillStyle(0x007bff); g.fillRect(0,0,30,45); g.generateTexture('p',30,45);
+    g.clear();
+    g.fillStyle(0x2d5a27); g.fillRect(0,0,32,32); g.generateTexture('g',32,32);
 }
 
 function create() {
     platforms = this.physics.add.staticGroup();
-    for (let i = 0; i < 100; i++) platforms.create(i * 32, 435, 'g').refresh();
-
-    player = this.physics.add.sprite(100, 300, 'p');
+    for (let i = 0; i < 60; i++) platforms.create(i * 32, 435, 'g').refresh();
+    player = this.physics.add.sprite(100, 300, 'p').setCollideWorldBounds(true);
     this.physics.add.collider(player, platforms);
-    this.cameras.main.startFollow(player, true, 0.1, 0.1);
 
-    const addBtn = (x, y, txt, dn, up) => {
-        let b = this.add.text(x, y, txt, { fontSize: '35px', backgroundColor: '#333', padding: 20 })
-            .setInteractive().setScrollFactor(0);
-        b.on('pointerdown', dn);
-        if(up) b.on('pointerup', up).on('pointerout', up);
+    const btn = (x, y, txt, dn, up) => {
+        let b = this.add.text(x, y, txt, { fontSize: '40px', backgroundColor: '#333', padding: 20 }).setInteractive().setScrollFactor(0);
+        b.on('pointerdown', dn); b.on('pointerup', up).on('pointerout', up);
     };
 
-    addBtn(20, 320, ' ← ', () => moveLeft = true, () => moveLeft = false);
-    addBtn(150, 320, ' → ', () => moveRight = true, () => moveRight = false);
-    addBtn(550, 320, ' SALT ', () => { if(player.body.touching.down) player.setVelocityY(-550) });
+    btn(50, 330, ' ← ', () => moveLeft = true, () => moveLeft = false);
+    btn(180, 330, ' → ', () => moveRight = true, () => moveRight = false);
+    btn(600, 330, ' SALT ', () => { if(player.body.touching.down) player.setVelocityY(-550) });
 }
 
 function update() {
