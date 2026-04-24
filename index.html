@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Contra Mobile Clone</title>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background: #000; }
+        canvas { display: block; margin: 0 auto; }
+    </style>
+</head>
+<body>
+<script>
+const config = {
+    type: Phaser.AUTO,
+    width: 800,
+    height: 450,
+    physics: { default: 'arcade', arcade: { gravity: { y: 800 }, debug: false } },
+    scene: { preload: preload, create: create, update: update }
+};
+
+const game = new Phaser.Game(config);
+let player, platforms, bullets, enemies, cursors;
+let moveLeft = false, moveRight = false, isJumping = false, isShooting = false;
+
+function preload() {
+    // Generamos texturas simples para no necesitar archivos externos
+    let canvas = this.textures.createCanvas('player', 32, 48);
+    canvas.context.fillStyle = '#0000ff'; canvas.context.fillRect(0, 0, 32, 48);
+    canvas.refresh();
+
+    let enemyBase = this.textures.createCanvas('soldier', 32, 48);
+    enemyBase.context.fillStyle = '#ff0000'; enemyBase.context.fillRect(0, 0, 32, 48);
+    enemyBase.refresh();
+}
+
+function create() {
+    // Suelo y Plataformas
+    platforms = this.physics.add.staticGroup();
+    platforms.create(1000, 430, 'player').setScale(70, 2).setTint(0x228b22).refresh(); // Suelo largo
+    platforms.create(400, 300, 'player').setScale(4, 0.5).setTint(0x228b22).refresh();
+
+    // Jugador
+    player = this.physics.add.sprite(100, 300, 'player');
+    player.setCollideWorldBounds(false);
+    this.physics.add.collider(player, platforms);
+
+    // Cámara
+    this.cameras.main.setBounds(0, 0, 2000, 450);
+    this.physics.world.setBounds(0, 0, 2000, 450);
+    this.cameras.main.startFollow(player);
+
+    // Balas y Enemigos
+    bullets = this.physics.add.group({ classType: Phaser.Physics.Arcade.Image });
+    enemies = this.physics.add.group();
+    
+    // Crear un enemigo de ejemplo (Soldier)
+    let soldier = enemies.create(600, 300, 'soldier');
+    this.physics.add.collider(enemies, platforms);
+    this.physics.add.overlap(bullets, enemies, (b, e) => { b.destroy(); e.destroy(); });
+
+    // --- CONTROLES TÁCTILES ---
+    createButton(this, 50, 380, '←', () => moveLeft = true, () => moveLeft = false);
+    createButton(this, 150, 380, '→', () => moveRight = true, () => moveRight = false);
+    createButton(this, 650, 380, 'SALTAR', () => { if(player.body.touching.down) player.setVelocityY(-450) });
+    createButton(this, 750, 380, 'FUEGO', () => shoot(this));
+
+    cursors = this.input.keyboard.createCursorKeys();
+}
+
+function createButton(scene, x, y, text, startFn, endFn) {
+    let btn = scene.add.text(x, y, text, { fontSize: '32px', backgroundColor: '#555', padding: 10 })
+        .setInteractive().setScrollFactor(0);
+    btn.on('pointerdown', startFn);
+    if(endFn) {
+        btn.on('pointerup', endFn);
+        btn.on('pointerout', endFn);
+    }
+}
+
+function shoot(scene) {
+    let b = bullets.create(player.x + 20, player.y, 'player').setScale(0.5, 0.2).setTint(0xffff00);
+    b.body.allowGravity = false;
+    b.setVelocityX(500);
+}
+
+function update() {
+    if (moveLeft || cursors.left.isDown) player.setVelocityX(-200);
+    else if (moveRight || cursors.right.isDown) player.setVelocityX(200);
+    else player.setVelocityX(0);
+}
+</script>
+</body>
+</html>
