@@ -1,26 +1,23 @@
 <!DOCTYPE html>
-<html lang="es">
+<html>
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
-    <title>Contra Debug</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.60.0/phaser.min.js"></script>
+    <title>Contra Ultra-Compat</title>
+    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
     <style>
-        body { margin: 0; background: #222; overflow: hidden; touch-action: none; }
-        #game-container { width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; }
+        body { margin: 0; background: red; overflow: hidden; touch-action: none; }
+        canvas { cursor: crosshair; }
     </style>
 </head>
 <body>
-    <div id="game-container"></div>
-
 <script>
-// Forzamos CANVAS para máxima compatibilidad en móviles
+// Configuración simplificada al extremo
 const config = {
-    type: Phaser.CANVAS, 
+    type: Phaser.AUTO, // Dejamos que el motor decida lo mejor
     width: 800,
     height: 450,
-    parent: 'game-container',
-    backgroundColor: '#111',
+    backgroundColor: '#1a1a1a', // Gris casi negro
     physics: { 
         default: 'arcade', 
         arcade: { gravity: { y: 1000 } } 
@@ -28,67 +25,57 @@ const config = {
     scene: { preload: preload, create: create, update: update }
 };
 
-// Intentar iniciar el juego y capturar errores
-try {
-    const game = new Phaser.Game(config);
-} catch (e) {
-    alert("Error al iniciar el juego: " + e.message);
-}
-
-let player, platforms, bullets, enemies, cursors;
-let moveLeft = false, moveRight = false;
+const game = new Phaser.Game(config);
+let player, platforms, moveLeft = false, moveRight = false, cursors;
 
 function preload() {
-    const graphics = this.make.graphics();
-    // Jugador
-    graphics.fillStyle(0x007bff);
-    graphics.fillRect(0, 0, 30, 45);
-    graphics.generateTexture('player', 30, 45);
+    // Generar texturas de emergencia si no hay imágenes
+    let graphics = this.make.graphics();
+    
+    // Jugador (Rectángulo Azul)
+    graphics.fillStyle(0x00aaff, 1);
+    graphics.fillRect(0, 0, 32, 48);
+    graphics.generateTexture('p', 32, 48);
     graphics.clear();
-    // Suelo
-    graphics.fillStyle(0x2d5a27);
+
+    // Suelo (Rectángulo Verde)
+    graphics.fillStyle(0x00ff00, 1);
     graphics.fillRect(0, 0, 32, 32);
-    graphics.generateTexture('ground', 32, 32);
-    graphics.clear();
-    // Enemigo
-    graphics.fillStyle(0xff4444);
-    graphics.fillRect(0, 0, 30, 45);
-    graphics.generateTexture('soldier', 30, 45);
+    graphics.generateTexture('g', 32, 32);
 }
 
 function create() {
+    // Fondo de éxito (Verde oscuro para saber que cargó Phaser)
+    this.cameras.main.setBackgroundColor('#0e230e');
+
     platforms = this.physics.add.staticGroup();
-    for (let i = 0; i < 50; i++) {
-        platforms.create(i * 32, 435, 'ground').refresh();
+    // Crear suelo
+    for (let i = 0; i < 40; i++) {
+        platforms.create(i * 32, 434, 'g').refresh();
     }
 
-    player = this.physics.add.sprite(100, 300, 'player');
+    player = this.physics.add.sprite(100, 200, 'p');
     player.setCollideWorldBounds(true);
     this.physics.add.collider(player, platforms);
 
-    this.cameras.main.setBounds(0, 0, 1600, 450);
-    this.cameras.main.startFollow(player);
+    // Botones ultra-simples (Texto plano)
+    let bL = this.add.text(50, 350, 'IZQ', { fontSize: '40px', fill: '#fff', backgroundColor: '#333' })
+        .setInteractive().setScrollFactor(0);
+    let bR = this.add.text(200, 350, 'DER', { fontSize: '40px', fill: '#fff', backgroundColor: '#333' })
+        .setInteractive().setScrollFactor(0);
+    let bJ = this.add.text(600, 350, 'SALT', { fontSize: '40px', fill: '#fff', backgroundColor: '#333' })
+        .setInteractive().setScrollFactor(0);
 
-    // Botones (Texto más grande para móvil)
-    const addBtn = (x, y, txt, press, release) => {
-        let b = this.add.text(x, y, txt, { 
-            fontSize: '40px', backgroundColor: '#444', padding: 20 
-        }).setInteractive().setScrollFactor(0).setAlpha(0.8);
-        b.on('pointerdown', press);
-        b.on('pointerup', release);
-        b.on('pointerout', release);
-    };
+    bL.on('pointerdown', () => moveLeft = true).on('pointerup', () => moveLeft = false);
+    bR.on('pointerdown', () => moveRight = true).on('pointerup', () => moveRight = false);
+    bJ.on('pointerdown', () => { if(player.body.touching.down) player.setVelocityY(-500); });
 
-    addBtn(10, 330, ' L ', () => moveLeft = true, () => moveLeft = false);
-    addBtn(150, 330, ' R ', () => moveRight = true, () => moveRight = false);
-    addBtn(500, 330, ' JUMP ', () => { if(player.body.touching.down) player.setVelocityY(-550); });
-    
     cursors = this.input.keyboard.createCursorKeys();
 }
 
 function update() {
-    if (moveLeft || cursors.left.isDown) player.setVelocityX(-250);
-    else if (moveRight || cursors.right.isDown) player.setVelocityX(250);
+    if (moveLeft || cursors.left.isDown) player.setVelocityX(-200);
+    else if (moveRight || cursors.right.isDown) player.setVelocityX(200);
     else player.setVelocityX(0);
 }
 </script>
