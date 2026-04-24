@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Contra Mobile Clone</title>
+    <title>Contra Mobile - 3 Enemigos</title>
     <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
     <style>
-        body { margin: 0; overflow: hidden; background: #000; }
+        body { margin: 0; overflow: hidden; background: #000; touch-action: none; }
         canvas { display: block; margin: 0 auto; }
     </style>
 </head>
@@ -16,34 +16,41 @@ const config = {
     type: Phaser.AUTO,
     width: 800,
     height: 450,
-    physics: { default: 'arcade', arcade: { gravity: { y: 800 }, debug: false } },
+    physics: { 
+        default: 'arcade', 
+        arcade: { gravity: { y: 800 }, debug: false } 
+    },
     scene: { preload: preload, create: create, update: update }
 };
 
 const game = new Phaser.Game(config);
 let player, platforms, bullets, enemies, cursors;
-let moveLeft = false, moveRight = false, isJumping = false, isShooting = false;
+let moveLeft = false, moveRight = false;
 
 function preload() {
-    // Generamos texturas simples para no necesitar archivos externos
-    let canvas = this.textures.createCanvas('player', 32, 48);
-    canvas.context.fillStyle = '#0000ff'; canvas.context.fillRect(0, 0, 32, 48);
-    canvas.refresh();
+    // Crear texturas básicas
+    const createTex = (key, w, h, color) => {
+        let canvas = this.textures.createCanvas(key, w, h);
+        canvas.context.fillStyle = color;
+        canvas.context.fillRect(0, 0, w, h);
+        canvas.refresh();
+    };
 
-    let enemyBase = this.textures.createCanvas('soldier', 32, 48);
-    enemyBase.context.fillStyle = '#ff0000'; enemyBase.context.fillRect(0, 0, 32, 48);
-    enemyBase.refresh();
+    createTex('player', 32, 48, '#0000ff');   // Azul
+    createTex('soldier', 32, 48, '#ff0000');  // Rojo
+    createTex('scout', 20, 40, '#ffa500');    // Naranja (delgado)
+    createTex('tank', 50, 40, '#800080');     // Púrpura (gordo)
+    createTex('bullet', 10, 5, '#ffff00');    // Amarillo
 }
 
 function create() {
-    // Suelo y Plataformas
+    // Plataformas
     platforms = this.physics.add.staticGroup();
-    platforms.create(1000, 430, 'player').setScale(70, 2).setTint(0x228b22).refresh(); // Suelo largo
-    platforms.create(400, 300, 'player').setScale(4, 0.5).setTint(0x228b22).refresh();
+    platforms.create(1000, 430, 'player').setScale(70, 2).setTint(0x228b22).refresh();
+    platforms.create(500, 320, 'player').setScale(5, 0.5).setTint(0x228b22).refresh();
 
     // Jugador
     player = this.physics.add.sprite(100, 300, 'player');
-    player.setCollideWorldBounds(false);
     this.physics.add.collider(player, platforms);
 
     // Cámara
@@ -51,27 +58,53 @@ function create() {
     this.physics.world.setBounds(0, 0, 2000, 450);
     this.cameras.main.startFollow(player);
 
-    // Balas y Enemigos
+    // Grupos
     bullets = this.physics.add.group({ classType: Phaser.Physics.Arcade.Image });
     enemies = this.physics.add.group();
-    
-    // Crear un enemigo de ejemplo (Soldier)
-    let soldier = enemies.create(600, 300, 'soldier');
-    this.physics.add.collider(enemies, platforms);
-    this.physics.add.overlap(bullets, enemies, (b, e) => { b.destroy(); e.destroy(); });
 
-    // --- CONTROLES TÁCTILES ---
-    createButton(this, 50, 380, '←', () => moveLeft = true, () => moveLeft = false);
-    createButton(this, 150, 380, '→', () => moveRight = true, () => moveRight = false);
-    createButton(this, 650, 380, 'SALTAR', () => { if(player.body.touching.down) player.setVelocityY(-450) });
-    createButton(this, 750, 380, 'FUEGO', () => shoot(this));
+    // Función para crear enemigos con datos personalizados
+    const spawnEnemy = (x, y, type, speed, health) => {
+        let e = enemies.create(x, y, type);
+        e.setData('speed', speed);
+        e.setData('health', health);
+        e.setData('type', type);
+        e.setCollideWorldBounds(true);
+    };
+
+    // Spawning inicial
+    spawnEnemy(600, 300, 'soldier', 100, 1);
+    spawnEnemy(900, 300, 'scout', 250, 1);
+    spawnEnemy(1200, 300, 'tank', 50, 5);
+
+    this.physics.add.collider(enemies, platforms);
+
+    // Colisión Bala -> Enemigo
+    this.physics.add.overlap(bullets, enemies, (bullet, enemy) => {
+        bullet.destroy();
+        let h = enemy.getData('health') - 1;
+        enemy.setData('health', h);
+        
+        // Efecto visual de daño
+        enemy.setAlpha(0.5);
+        this.time.delayedCall(100, () => enemy.setAlpha(1));
+
+        if (h <= 0) enemy.destroy();
+    });
+
+    // Controles Táctiles
+    createButton(this, 50, 370, '←', () => moveLeft = true, () => moveLeft = false);
+    createButton(this, 150, 370, '→', () => moveRight = true, () => moveRight = false);
+    createButton(this, 620, 370, 'SALTAR', () => { if(player.body.touching.down) player.setVelocityY(-450) });
+    createButton(this, 730, 370, 'FUEGO', () => shoot(this));
 
     cursors = this.input.keyboard.createCursorKeys();
 }
 
 function createButton(scene, x, y, text, startFn, endFn) {
-    let btn = scene.add.text(x, y, text, { fontSize: '32px', backgroundColor: '#555', padding: 10 })
-        .setInteractive().setScrollFactor(0);
+    let btn = scene.add.text(x, y, text, { 
+        fontSize: '28px', backgroundColor: '#333', padding: 12, color: '#fff' 
+    }).setInteractive().setScrollFactor(0);
+    
     btn.on('pointerdown', startFn);
     if(endFn) {
         btn.on('pointerup', endFn);
@@ -80,15 +113,30 @@ function createButton(scene, x, y, text, startFn, endFn) {
 }
 
 function shoot(scene) {
-    let b = bullets.create(player.x + 20, player.y, 'player').setScale(0.5, 0.2).setTint(0xffff00);
+    let b = bullets.create(player.x + 20, player.y, 'bullet');
     b.body.allowGravity = false;
     b.setVelocityX(500);
 }
 
 function update() {
+    // Movimiento Jugador
     if (moveLeft || cursors.left.isDown) player.setVelocityX(-200);
     else if (moveRight || cursors.right.isDown) player.setVelocityX(200);
     else player.setVelocityX(0);
+
+    // IA de Enemigos
+    enemies.getChildren().forEach(enemy => {
+        let distance = Phaser.Math.Distance.Between(player.x, player.y, enemy.x, enemy.y);
+        let speed = enemy.getData('speed');
+
+        if (distance < 350) { // Rango de detección
+            if (player.x < enemy.x) enemy.setVelocityX(-speed);
+            else enemy.setVelocityX(speed);
+        } else {
+            // Patrulla básica o detenerse
+            if (Math.random() < 0.01) enemy.setVelocityX(Phaser.Math.Between(-1, 1) * speed);
+        }
+    });
 }
 </script>
 </body>
