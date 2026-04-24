@@ -4,20 +4,27 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
     <title>Contra Mobile</title>
-    <script src="https://cdn.jsdelivr.net/npm/phaser@3.60.0/dist/phaser.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.60.0/phaser.min.js"></script>
     <style>
-        body { margin: 0; background: #222; overflow: hidden; touch-action: none; }
-        canvas { display: block; margin: 0 auto; }
+        body { margin: 0; background: #000; overflow: hidden; touch-action: none; color: white; font-family: sans-serif; }
+        #game-container { display: flex; justify-content: center; align-items: center; height: 100vh; }
     </style>
 </head>
 <body>
-<div id="game-container"></div>
+    <div id="game-container"></div>
+
 <script>
+// Verificación rápida para ver si Phaser cargó
+if (typeof Phaser === 'undefined') {
+    document.getElementById('game-container').innerHTML = '<h1>Error: No se pudo cargar Phaser. Revisa tu conexión.</h1>';
+}
+
 const config = {
     type: Phaser.AUTO,
     width: 800,
     height: 450,
     parent: 'game-container',
+    backgroundColor: '#111',
     physics: { 
         default: 'arcade', 
         arcade: { gravity: { y: 1000 }, debug: false } 
@@ -30,48 +37,77 @@ let player, platforms, bullets, enemies, cursors;
 let moveLeft = false, moveRight = false;
 
 function preload() {
-    const createTex = (key, w, h, color) => {
-        let canvas = this.textures.createCanvas(key, w, h);
-        canvas.context.fillStyle = color;
-        canvas.context.fillRect(0, 0, w, h);
-        canvas.refresh();
-    };
-    createTex('player', 30, 45, '#007bff');
-    createTex('soldier', 30, 45, '#ff4444');
-    createTex('scout', 18, 35, '#ffbb33');
-    createTex('tank', 55, 40, '#aa66cc');
-    createTex('bullet', 12, 6, '#ffff00');
-    createTex('ground', 32, 32, '#2d5a27');
+    // Generar texturas directamente para no depender de archivos externos
+    const graphics = this.make.graphics();
+
+    // Jugador (Azul)
+    graphics.fillStyle(0x007bff);
+    graphics.fillRect(0, 0, 30, 45);
+    graphics.generateTexture('player', 30, 45);
+    graphics.clear();
+
+    // Enemigo Básico (Rojo)
+    graphics.fillStyle(0xff4444);
+    graphics.fillRect(0, 0, 30, 45);
+    graphics.generateTexture('soldier', 30, 45);
+    graphics.clear();
+
+    // Enemigo Rápido (Naranja)
+    graphics.fillStyle(0xffbb33);
+    graphics.fillRect(0, 0, 18, 35);
+    graphics.generateTexture('scout', 18, 35);
+    graphics.clear();
+
+    // Enemigo Tanque (Púrpura)
+    graphics.fillStyle(0xaa66cc);
+    graphics.fillRect(0, 0, 55, 40);
+    graphics.generateTexture('tank', 55, 40);
+    graphics.clear();
+
+    // Suelo (Verde)
+    graphics.fillStyle(0x2d5a27);
+    graphics.fillRect(0, 0, 32, 32);
+    graphics.generateTexture('ground', 32, 32);
+    graphics.clear();
+
+    // Bala (Amarillo)
+    graphics.fillStyle(0xffff00);
+    graphics.fillRect(0, 0, 12, 6);
+    graphics.generateTexture('bullet', 12, 6);
 }
 
 function create() {
     platforms = this.physics.add.staticGroup();
-    // Suelo extendido para scroll
+    // Suelo largo
     for (let i = 0; i < 100; i++) {
         platforms.create(i * 32, 435, 'ground').refresh();
     }
-    platforms.create(400, 310, 'ground').setScale(4, 0.5).refresh();
-    platforms.create(800, 250, 'ground').setScale(4, 0.5).refresh();
+    // Plataformas elevadas
+    platforms.create(400, 300, 'ground').setScale(5, 0.5).refresh();
+    platforms.create(800, 220, 'ground').setScale(5, 0.5).refresh();
 
     player = this.physics.add.sprite(100, 300, 'player');
-    player.setCollideWorldBounds(false);
+    player.setCollideWorldBounds(true);
     this.physics.add.collider(player, platforms);
 
+    // Cámara
     this.cameras.main.setBounds(0, 0, 3000, 450);
     this.physics.world.setBounds(0, 0, 3000, 450);
     this.cameras.main.startFollow(player, true, 0.1, 0.1);
 
-    bullets = this.physics.add.group({ classType: Phaser.Physics.Arcade.Image });
+    // Combate
+    bullets = this.physics.add.group();
     enemies = this.physics.add.group();
 
     const spawn = (x, y, type, speed, hp) => {
         let e = enemies.create(x, y, type);
         e.setData({ speed: speed, health: hp });
+        e.setCollideWorldBounds(true);
     };
 
-    spawn(700, 350, 'soldier', 100, 1);
-    spawn(1100, 350, 'scout', 250, 1);
-    spawn(1500, 350, 'tank', 60, 5);
+    spawn(700, 300, 'soldier', 120, 1);
+    spawn(1200, 300, 'scout', 280, 1);
+    spawn(1800, 300, 'tank', 60, 5);
 
     this.physics.add.collider(enemies, platforms);
     this.physics.add.overlap(bullets, enemies, (bullet, enemy) => {
@@ -81,19 +117,23 @@ function create() {
         if (hp <= 0) enemy.destroy();
     });
 
-    // Botones Táctiles con mejor respuesta
+    // Botones Táctiles
     const addBtn = (x, y, txt, press, release) => {
-        let b = this.add.text(x, y, txt, { fontSize: '30px', backgroundColor: '#444', padding: 15 })
-            .setInteractive().setScrollFactor(0).setAlpha(0.7);
+        let b = this.add.text(x, y, txt, { 
+            fontSize: '28px', backgroundColor: '#444', padding: 15, borderRadius: '10px' 
+        }).setInteractive().setScrollFactor(0).setAlpha(0.8);
         b.on('pointerdown', press);
-        if(release) b.on('pointerup', release);
+        if(release) {
+            b.on('pointerup', release);
+            b.on('pointerout', release);
+        }
     };
 
     addBtn(20, 350, ' ← ', () => moveLeft = true, () => moveLeft = false);
-    addBtn(120, 350, ' → ', () => moveRight = true, () => moveRight = false);
-    addBtn(550, 350, ' SALT ', () => { if(player.body.touching.down) player.setVelocityY(-500) });
+    addBtn(130, 350, ' → ', () => moveRight = true, () => moveRight = false);
+    addBtn(550, 350, ' SALT ', () => { if(player.body.touching.down) player.setVelocityY(-550); });
     addBtn(700, 350, ' FIRE ', () => {
-        let b = bullets.create(player.x + 20, player.y, 'bullet');
+        let b = bullets.create(player.x + 25, player.y, 'bullet');
         b.body.allowGravity = false;
         b.setVelocityX(600);
     });
@@ -102,8 +142,8 @@ function create() {
 }
 
 function update() {
-    if (moveLeft || cursors.left.isDown) player.setVelocityX(-220);
-    else if (moveRight || cursors.right.isDown) player.setVelocityX(220);
+    if (moveLeft || cursors.left.isDown) player.setVelocityX(-250);
+    else if (moveRight || cursors.right.isDown) player.setVelocityX(250);
     else player.setVelocityX(0);
 
     enemies.getChildren().forEach(e => {
@@ -113,8 +153,6 @@ function update() {
             else e.setVelocityX(e.getData('speed'));
         }
     });
-
-    if (player.y > 500) player.setPosition(100, 300); // Reset si cae
 }
 </script>
 </body>
