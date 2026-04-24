@@ -3,77 +3,68 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
-    <title>Contra S26/Mac Final</title>
+    <title>Contra Final S26</title>
     <script src="https://ajax.googleapis.com/ajax/libs/phaser/3.60.0/phaser.min.js"></script>
     <style>
-        body { margin: 0; background: #222; overflow: hidden; touch-action: none; color: white; text-align: center; font-family: sans-serif; }
-        #game-container { width: 100vw; height: 100vh; background: #111; }
-        #debug-msg { position: absolute; top: 10px; width: 100%; z-index: 100; pointer-events: none; }
+        body { margin: 0; background: #000; overflow: hidden; touch-action: none; color: white; font-family: sans-serif; }
+        canvas { display: block; margin: 0 auto; }
+        #loading-ui { position: absolute; width: 100%; top: 40%; text-align: center; }
     </style>
 </head>
 <body>
-    <div id="debug-msg">Cargando motor de juego...</div>
-    <div id="game-container"></div>
-
+    <div id="loading-ui">Iniciando sistema...</div>
 <script>
-// Verificar si la librería cargó
-window.onload = function() {
-    if (typeof Phaser === 'undefined') {
-        document.getElementById('debug-msg').innerHTML = "<h2 style='color:red'>ERROR: Tu navegador bloqueó el script del juego.<br>Prueba desactivando extensiones o usa otra red WiFi.</h2>";
-        return;
-    }
-    document.getElementById('debug-msg').innerHTML = "Motor cargado. ¡A jugar!";
-    setTimeout(() => { document.getElementById('debug-msg').style.display = 'none'; }, 2000);
-};
-
 const config = {
-    type: Phaser.AUTO,
+    type: Phaser.CANVAS, // Forzamos CANVAS para que el S26 no se bloquee con WebGL
     width: 800,
     height: 450,
-    parent: 'game-container',
+    backgroundColor: '#111',
     physics: { default: 'arcade', arcade: { gravity: { y: 1000 } } },
     scene: { preload: preload, create: create, update: update }
 };
 
-const game = new Phaser.Game(config);
-let player, platforms, bullets, enemies, moveLeft = false, moveRight = false, cursors;
+let game;
+try {
+    game = new Phaser.Game(config);
+} catch (e) {
+    document.getElementById('loading-ui').innerHTML = "Fallo al iniciar motor.";
+}
+
+let player, platforms, moveLeft = false, moveRight = false, cursors;
 
 function preload() {
     let g = this.make.graphics();
-    const draw = (k, w, h, c) => {
-        g.clear(); g.fillStyle(c); g.fillRect(0,0,w,h); g.generateTexture(k,w,h);
-    };
-    draw('p', 30, 45, 0x007bff); draw('s', 30, 45, 0xff4444);
-    draw('g', 32, 32, 0x2d5a27); draw('b', 12, 6, 0xffff00);
+    g.fillStyle(0x007bff); g.fillRect(0,0,30,45); g.generateTexture('p',30,45);
+    g.clear();
+    g.fillStyle(0x2d5a27); g.fillRect(0,0,32,32); g.generateTexture('g',32,32);
 }
 
 function create() {
-    platforms = this.physics.add.staticGroup();
-    for (let i = 0; i < 60; i++) platforms.create(i * 32, 435, 'g').refresh();
+    document.getElementById('loading-ui').style.display = 'none';
     
+    platforms = this.physics.add.staticGroup();
+    for (let i = 0; i < 80; i++) platforms.create(i * 32, 435, 'g').refresh();
+
     player = this.physics.add.sprite(100, 300, 'p').setCollideWorldBounds(true);
     this.physics.add.collider(player, platforms);
 
-    bullets = this.physics.add.group();
-    enemies = this.physics.add.group();
-
     const addBtn = (x, y, txt, dn, up) => {
-        let b = this.add.text(x, y, txt, { fontSize: '35px', backgroundColor: '#444', padding: 20 })
+        let b = this.add.text(x, y, txt, { fontSize: '40px', backgroundColor: '#333', padding: 20 })
             .setInteractive().setScrollFactor(0);
         b.on('pointerdown', dn);
         if(up) b.on('pointerup', up).on('pointerout', up);
     };
 
-    addBtn(20, 330, ' ← ', () => moveLeft = true, () => moveLeft = false);
-    addBtn(150, 330, ' → ', () => moveRight = true, () => moveRight = false);
-    addBtn(600, 330, ' SALT ', () => { if(player.body.touching.down) player.setVelocityY(-550) });
-    
+    addBtn(50, 320, ' ← ', () => moveLeft = true, () => moveLeft = false);
+    addBtn(180, 320, ' → ', () => moveRight = true, () => moveRight = false);
+    addBtn(600, 320, ' SALT ', () => { if(player.body.touching.down) player.setVelocityY(-550) });
+
     cursors = this.input.keyboard.createCursorKeys();
 }
 
 function update() {
-    if (moveLeft || cursors.left.isDown) player.setVelocityX(-250);
-    else if (moveRight || cursors.right.isDown) player.setVelocityX(250);
+    if (moveLeft || (cursors && cursors.left.isDown)) player.setVelocityX(-250);
+    else if (moveRight || (cursors && cursors.right.isDown)) player.setVelocityX(250);
     else player.setVelocityX(0);
 }
 </script>
