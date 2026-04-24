@@ -3,68 +3,73 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
-    <title>Contra Final S26</title>
-    <script src="https://ajax.googleapis.com/ajax/libs/phaser/3.60.0/phaser.min.js"></script>
+    <title>Contra Chrome Fix</title>
+    <script src="https://unpkg.com/phaser@3.60.0/dist/phaser.min.js"></script>
     <style>
-        body { margin: 0; background: #000; overflow: hidden; touch-action: none; color: white; font-family: sans-serif; }
-        canvas { display: block; margin: 0 auto; }
-        #loading-ui { position: absolute; width: 100%; top: 40%; text-align: center; }
+        body { margin: 0; background: #111; overflow: hidden; touch-action: none; color: white; font-family: sans-serif; }
+        #game-container { width: 100vw; height: 100vh; display: flex; justify-content: center; align-items: center; }
+        #status-bar { position: absolute; top: 0; width: 100%; text-align: center; background: rgba(0,0,0,0.5); padding: 5px; z-index: 10; font-size: 12px; }
     </style>
 </head>
 <body>
-    <div id="loading-ui">Iniciando sistema...</div>
+    <div id="status-bar">Iniciando motor...</div>
+    <div id="game-container"></div>
 <script>
+// Verificador de carga para Chrome
+window.addEventListener('load', function() {
+    const status = document.getElementById('status-bar');
+    if (typeof Phaser === 'undefined') {
+        status.innerHTML = "❌ ERROR: Chrome bloqueó el script. Prueba: Configuración -> Privacidad -> Desactivar Protección Mejorada.";
+        status.style.color = "#ff4444";
+    } else {
+        status.innerHTML = "✅ Motor Phaser cargado en Chrome";
+        setTimeout(() => { status.style.display = 'none'; }, 2000);
+    }
+});
+
 const config = {
-    type: Phaser.CANVAS, // Forzamos CANVAS para que el S26 no se bloquee con WebGL
+    type: Phaser.AUTO,
     width: 800,
     height: 450,
-    backgroundColor: '#111',
+    parent: 'game-container',
+    backgroundColor: '#1a1a1a',
     physics: { default: 'arcade', arcade: { gravity: { y: 1000 } } },
     scene: { preload: preload, create: create, update: update }
 };
 
-let game;
-try {
-    game = new Phaser.Game(config);
-} catch (e) {
-    document.getElementById('loading-ui').innerHTML = "Fallo al iniciar motor.";
-}
-
-let player, platforms, moveLeft = false, moveRight = false, cursors;
+let player, platforms, moveLeft = false, moveRight = false;
 
 function preload() {
     let g = this.make.graphics();
+    // Jugador
     g.fillStyle(0x007bff); g.fillRect(0,0,30,45); g.generateTexture('p',30,45);
     g.clear();
+    // Suelo
     g.fillStyle(0x2d5a27); g.fillRect(0,0,32,32); g.generateTexture('g',32,32);
 }
 
 function create() {
-    document.getElementById('loading-ui').style.display = 'none';
-    
     platforms = this.physics.add.staticGroup();
-    for (let i = 0; i < 80; i++) platforms.create(i * 32, 435, 'g').refresh();
-
+    for (let i = 0; i < 60; i++) platforms.create(i * 32, 435, 'g').refresh();
+    
     player = this.physics.add.sprite(100, 300, 'p').setCollideWorldBounds(true);
     this.physics.add.collider(player, platforms);
 
     const addBtn = (x, y, txt, dn, up) => {
-        let b = this.add.text(x, y, txt, { fontSize: '40px', backgroundColor: '#333', padding: 20 })
+        let b = this.add.text(x, y, txt, { fontSize: '38px', backgroundColor: '#444', padding: 15 })
             .setInteractive().setScrollFactor(0);
         b.on('pointerdown', dn);
         if(up) b.on('pointerup', up).on('pointerout', up);
     };
 
-    addBtn(50, 320, ' ← ', () => moveLeft = true, () => moveLeft = false);
-    addBtn(180, 320, ' → ', () => moveRight = true, () => moveRight = false);
-    addBtn(600, 320, ' SALT ', () => { if(player.body.touching.down) player.setVelocityY(-550) });
-
-    cursors = this.input.keyboard.createCursorKeys();
+    addBtn(40, 330, ' ← ', () => moveLeft = true, () => moveLeft = false);
+    addBtn(160, 330, ' → ', () => moveRight = true, () => moveRight = false);
+    addBtn(600, 330, ' SALT ', () => { if(player.body.touching.down) player.setVelocityY(-550) });
 }
 
 function update() {
-    if (moveLeft || (cursors && cursors.left.isDown)) player.setVelocityX(-250);
-    else if (moveRight || (cursors && cursors.right.isDown)) player.setVelocityX(250);
+    if (moveLeft) player.setVelocityX(-250);
+    else if (moveRight) player.setVelocityX(250);
     else player.setVelocityX(0);
 }
 </script>
