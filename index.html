@@ -1,31 +1,211 @@
 <!DOCTYPE html>
-<html>
+<html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Contra Local</title>
-    <script src="phaser.min.js"></script> 
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, viewport-fit=cover">
+    <title>Contra Mobile: Knockback Edition</title>
+    <script src="phaser.min.js"></script>
+    <style>
+        body { margin: 0; background: #000; overflow: hidden; touch-action: none; display: flex; justify-content: center; align-items: center; height: 100vh; color: white; font-family: sans-serif; }
+        canvas { box-shadow: 0 0 30px rgba(0,0,0,0.7); border: 2px solid #333; }
+        #ui-layer { position: absolute; z-index: 100; text-align: center; }
+        .btn-start { padding: 25px 50px; font-size: 24px; background: linear-gradient(45deg, #ff416c, #ff4b2b); color: white; border: none; border-radius: 50px; font-weight: bold; cursor: pointer; box-shadow: 0 5px 15px rgba(255, 75, 43, 0.4); transition: all 0.2s; }
+        .btn-start:active { transform: scale(0.95); box-shadow: 0 2px 5px rgba(255, 75, 43, 0.4); }
+    </style>
 </head>
 <body>
-    <div id="game"></div>
+
+    <div id="ui-layer">
+        <button class="btn-start" id="launch">INICIAR OPERACIÓN</button>
+    </div>
+    <div id="phaser-app"></div>
+
 <script>
-    const config = {
-        type: Phaser.AUTO,
-        width: 800,
-        height: 450,
-        parent: 'game',
-        scene: {
-            create: function() {
-                this.add.text(100, 100, '¡PHASER CARGADO LOCALMENTE!', { fill: '#0f0' });
+// --- CONFIGURACIÓN DEL MOTOR ---
+const CONFIG = {
+    type: Phaser.AUTO, // AUTO intentará WebGL, si falla en S26, usará CANVAS
+    parent: 'phaser-app',
+    width: 900, // Un poco más ancho para mejor UI
+    height: 500,
+    backgroundColor: '#000000',
+    render: { pixelArt: false, antialias: true }, // Antialias para que se vea bonito
+    scale: { mode: Phaser.Scale.FIT, autoCenter: Phaser.Scale.CENTER_BOTH },
+    physics: { default: 'arcade', arcade: { gravity: { y: 1300 }, debug: false } },
+    scene: { preload: preload, create: create, update: update }
+};
+
+document.getElementById('launch').onclick = function() {
+    this.parentElement.style.display = 'none';
+    new Phaser.Game(CONFIG);
+};
+
+// --- VARIABLES GLOBALES ---
+let player, enemy, platforms;
+let moveL = false, moveR = false;
+let isKnockback = false;
+let playerHealth = 3;
+let uiTexts = {};
+
+// --- FUNCIONES PRINCIPALES ---
+
+function preload() {
+    let g = this.make.graphics();
+    
+    // 1. Crear el Atardecer (Fondo Degradado)
+    let textureDef = { cells: 1, width: 900, height: 500 };
+    let gradTexture = this.textures.createCanvas('sunset', 900, 500);
+    let ctx = gradTexture.getContext();
+    let grd = ctx.createLinearGradient(0, 0, 0, 500);
+    grd.addColorStop(0, '#111122'); // Noche
+    grd.addColorStop(0.5, '#442244'); // Atardecer oscuro
+    grd.addColorStop(1, '#884422'); // Horizonte
+    ctx.fillStyle = grd; ctx.fillRect(0, 0, 900, 500); gradTexture.refresh();
+
+    // 2. Jugador Estilizado (Forma de Cápsula futurista - Azul)
+    g.clear();
+    let pGrd = g.context.createLinearGradient(0,0,30,45);
+    pGrd.addColorStop(0, '#00ddff'); pGrd.addColorStop(1, '#0055aa');
+    g.fillStyle(pGrd); g.fillRoundedRect(0, 0, 30, 45, 10);
+    g.lineStyle(2, #ffffff, 0.5); g.strokeRoundedRect(0, 0, 30, 45, 10);
+    g.generateTexture('player', 30, 45);
+
+    // 3. Enemigo (Robot Malvado - Rojo)
+    g.clear();
+    let eGrd = g.context.createLinearGradient(0,0,30,45);
+    eGrd.addColorStop(0, '#ff4444'); eGrd.addColorStop(1, '#880000');
+    g.fillStyle(eGrd); g.fillRoundedRect(0, 0, 30, 45, { tl: 15, tr: 15, bl: 5, br: 5 });
+    // Ojo del robot
+    g.fillStyle(0xffffff); g.fillCircle(15, 15, 5); g.fillStyle(0xff0000); g.fillCircle(15, 15, 2);
+    g.generateTexture('enemy', 30, 45);
+
+    // 4. Suelo con Textura (Ladrillos)
+    g.clear(); g.fillStyle(0x333333); g.fillRect(0,0,32,32);
+    g.fillStyle(0x222222); g.fillRect(1,1,30,15); g.fillRect(1,17,30,15);
+    g.generateTexture('floor', 32, 32);
+}
+
+function create() {
+    // Añadir fondo
+    this.add.image(450, 250, 'sunset');
+
+    // Crear suelo sólido
+    platforms = this.physics.add.staticGroup();
+    for (let i = 0; i < 110; i += 4) { // Ladrillos más grandes
+        platforms.create(i * 8, 484, 'floor').setScale(0.25).refresh();
+    }
+    // Plataforma elevada
+    platforms.create(600, 350, 'floor').setScale(2, 0.5).refresh();
+
+    // Crear jugador
+    player = this.physics.add.sprite(150, 300, 'player');
+    player.setCollideWorldBounds(true).setBounce(0.1);
+    this.physics.add.collider(player, platforms);
+
+    // Crear enemigo con IA simple
+    enemy = this.physics.add.sprite(700, 300, 'enemy');
+    enemy.setCollideWorldBounds(true);
+    this.physics.add.collider(enemy, platforms);
+
+    // --- LÓGICA DE KNOCKBACK ---
+    this.physics.add.collider(player, enemy, (p, e) => {
+        if (!isKnockback) {
+            triggerKnockback(p, e, this);
+        }
+    });
+
+    // --- INTERFAZ (UI) ---
+    uiTexts.health = this.add.text(20, 20, 'SALUD: ' + playerHealth, { fontSize: '24px', fill: '#0f0', fontWeight: 'bold' });
+    this.add.text(10, 480, 'Toca las zonas inferiores para moverte. Derecha arriba para saltar.', { fontSize: '14px', fill: '#aaa' });
+
+    // --- CONTROLES TÁCTILES MODERNOS ---
+    const btnStyle = { fontSize: '50px', backgroundColor: 'rgba(50,50,50,0.5)', padding: {x: 25, y: 15} };
+    
+    // Botones con bordes redondeados y efecto press
+    let bL = createTouchBtn(this, 70, 380, ' ← ', btnStyle);
+    let bR = createTouchBtn(this, 220, 380, ' → ', btnStyle);
+    let bJ = createTouchBtn(this, 780, 380, ' SALT ', { ...btnStyle, fontSize: '30px' });
+
+    bL.on('pointerdown', () => moveL = true); bL.on('pointerup', () => moveL = false); bL.on('pointerout', () => moveL = false);
+    bR.on('pointerdown', () => moveR = true); bR.on('pointerup', () => moveR = false); bR.on('pointerout', () => moveR = false);
+    bJ.on('pointerdown', () => { if(player.body.touching.down && !isKnockback) player.setVelocityY(-620); });
+}
+
+function update() {
+    // Si estamos en knockback, no podemos controlar al personaje
+    if (isKnockback) return;
+
+    if (moveL) {
+        player.setVelocityX(-280);
+        player.setFlipX(true); // Girar gráfico
+    } else if (moveR) {
+        player.setVelocityX(280);
+        player.setFlipX(false);
+    } else {
+        player.setVelocityX(0);
+    }
+
+    // IA Simple del enemigo: te sigue si estás a menos de 400px
+    if (enemy.active) {
+        let dist = player.x - enemy.x;
+        if (Math.abs(dist) < 400 && Math.abs(dist) > 30) {
+            enemy.setVelocityX(dist > 0 ? 120 : -120);
+            enemy.setFlipX(dist < 0);
+        } else {
+            enemy.setVelocityX(0);
+        }
+    }
+}
+
+// --- FUNCIONES DE AYUDA (HELPER FUNCTIONS) ---
+
+function createTouchBtn(scene, x, y, txt, style) {
+    // Usamos Graphics para dibujar el fondo del botón redondeado
+    let bg = scene.add.graphics();
+    bg.fillStyle(0x333333, 0.5); bg.fillRoundedRect(- style.padding.x, - style.padding.y, 110, 80, 15);
+    
+    let container = scene.add.container(x, y, [bg, scene.add.text(0, 0, txt, style).setOrigin(0.5)]);
+    container.setSize(110, 80).setInteractive().setScrollFactor(0);
+    
+    // Efecto visual al tocar
+    container.on('pointerdown', () => bg.clear().fillStyle(0xff4444, 0.7).fillRoundedRect(- style.padding.x, - style.padding.y, 110, 80, 15));
+    container.on('pointerup', () => bg.clear().fillStyle(0x333333, 0.5).fillRoundedRect(- style.padding.x, - style.padding.y, 110, 80, 15));
+    container.on('pointerout', () => bg.clear().fillStyle(0x333333, 0.5).fillRoundedRect(- style.padding.x, - style.padding.y, 110, 80, 15));
+
+    return container;
+}
+
+function triggerKnockback(p, e, scene) {
+    isKnockback = true;
+    playerHealth--;
+    uiTexts.health.setText('SALUD: ' + playerHealth);
+    
+    // Calcular dirección del golpe
+    let direction = p.x < e.x ? -1 : 1;
+    
+    // Aplicar fuerza de knockback (Hacia atrás y hacia arriba)
+    p.setVelocityX(direction * 400);
+    p.setVelocityY(-350);
+    p.setTint(0xff0000); // Tinte rojo de daño
+
+    // Efecto de parpadeo de invencibilidad (Tween)
+    scene.tweens.add({
+        targets: p,
+        alpha: 0.2,
+        duration: 100,
+        ease: 'Linear',
+        yoyo: true,
+        repeat: 8,
+        onComplete: () => {
+            isKnockback = false;
+            p.clearTint(); // Quitar tinte rojo
+            p.setAlpha(1);
+            if (playerHealth <= 0) {
+                scene.add.text(450, 250, 'MISIÓN FALLIDA', { fontSize: '64px', fill: '#f00' }).setOrigin(0.5);
+                p.destroy();
             }
         }
-    };
-    // Verificador simple
-    if (typeof Phaser === 'undefined') {
-        document.body.innerHTML = "<h1>Sigue sin detectar el archivo phaser.min.js</h1>";
-    } else {
-        new Phaser.Game(config);
-    }
+    });
+}
 </script>
 </body>
 </html>
