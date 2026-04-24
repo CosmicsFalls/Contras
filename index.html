@@ -3,98 +3,71 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
-    <title>Contra Debug Mac/S26</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.60.0/phaser.min.js"></script>
+    <title>Contra S26/Mac Final</title>
+    <script src="https://ajax.googleapis.com/ajax/libs/phaser/3.60.0/phaser.min.js"></script>
     <style>
-        /* Si ves rojo, el script no cargó */
-        body { margin: 0; background: red; overflow: hidden; touch-action: none; }
-        #game-container { width: 100vw; height: 100vh; background: #000; }
+        body { margin: 0; background: #222; overflow: hidden; touch-action: none; color: white; text-align: center; font-family: sans-serif; }
+        #game-container { width: 100vw; height: 100vh; background: #111; }
+        #debug-msg { position: absolute; top: 10px; width: 100%; z-index: 100; pointer-events: none; }
     </style>
 </head>
 <body>
+    <div id="debug-msg">Cargando motor de juego...</div>
     <div id="game-container"></div>
+
 <script>
-// Intentar arrancar Phaser
-try {
-    const config = {
-        type: Phaser.AUTO,
-        width: 800,
-        height: 450,
-        parent: 'game-container',
-        backgroundColor: '#111', // Si carga Phaser, se pone gris oscuro
-        physics: { 
-            default: 'arcade', 
-            arcade: { gravity: { y: 1000 } } 
-        },
-        scene: { preload: preload, create: create, update: update }
-    };
+// Verificar si la librería cargó
+window.onload = function() {
+    if (typeof Phaser === 'undefined') {
+        document.getElementById('debug-msg').innerHTML = "<h2 style='color:red'>ERROR: Tu navegador bloqueó el script del juego.<br>Prueba desactivando extensiones o usa otra red WiFi.</h2>";
+        return;
+    }
+    document.getElementById('debug-msg').innerHTML = "Motor cargado. ¡A jugar!";
+    setTimeout(() => { document.getElementById('debug-msg').style.display = 'none'; }, 2000);
+};
 
-    const game = new Phaser.Game(config);
-} catch (e) {
-    document.body.innerHTML = "<h1 style='color:white'>Error de Carga: Phaser no responde.</h1>";
-}
+const config = {
+    type: Phaser.AUTO,
+    width: 800,
+    height: 450,
+    parent: 'game-container',
+    physics: { default: 'arcade', arcade: { gravity: { y: 1000 } } },
+    scene: { preload: preload, create: create, update: update }
+};
 
-let player, platforms, bullets, enemies, cursors;
-let moveLeft = false, moveRight = false;
+const game = new Phaser.Game(config);
+let player, platforms, bullets, enemies, moveLeft = false, moveRight = false, cursors;
 
 function preload() {
     let g = this.make.graphics();
     const draw = (k, w, h, c) => {
         g.clear(); g.fillStyle(c); g.fillRect(0,0,w,h); g.generateTexture(k,w,h);
     };
-    draw('p', 30, 45, 0x007bff); // Jugador
-    draw('s', 30, 45, 0xff4444); // Soldado
-    draw('sc', 18, 35, 0xffbb33); // Scout
-    draw('t', 55, 40, 0xaa66cc); // Tank
-    draw('g', 32, 32, 0x2d5a27); // Suelo
-    draw('b', 12, 6, 0xffff00); // Bala
+    draw('p', 30, 45, 0x007bff); draw('s', 30, 45, 0xff4444);
+    draw('g', 32, 32, 0x2d5a27); draw('b', 12, 6, 0xffff00);
 }
 
 function create() {
     platforms = this.physics.add.staticGroup();
-    for (let i = 0; i < 100; i++) platforms.create(i * 32, 435, 'g').refresh();
+    for (let i = 0; i < 60; i++) platforms.create(i * 32, 435, 'g').refresh();
     
     player = this.physics.add.sprite(100, 300, 'p').setCollideWorldBounds(true);
     this.physics.add.collider(player, platforms);
 
-    this.cameras.main.setBounds(0, 0, 3000, 450);
-    this.cameras.main.startFollow(player, true, 0.1, 0.1);
-
     bullets = this.physics.add.group();
     enemies = this.physics.add.group();
 
-    const spawn = (x, y, type, speed, hp) => {
-        let e = enemies.create(x, y, type);
-        e.setData({ speed: speed, health: hp }).setCollideWorldBounds(true);
-    };
-
-    spawn(700, 300, 's', 120, 1);
-    spawn(1200, 300, 'sc', 280, 1);
-    spawn(1800, 300, 't', 60, 5);
-
-    this.physics.add.collider(enemies, platforms);
-    this.physics.add.overlap(bullets, enemies, (b, e) => {
-        b.destroy();
-        let hp = e.getData('health') - 1;
-        e.setData('health', hp);
-        if (hp <= 0) e.destroy();
-    });
-
-    const addBtn = (x, y, txt, down, up) => {
-        let b = this.add.text(x, y, txt, { fontSize: '32px', backgroundColor: '#444', padding: 15 })
-            .setInteractive().setScrollFactor(0).setAlpha(0.7);
-        b.on('pointerdown', down);
+    const addBtn = (x, y, txt, dn, up) => {
+        let b = this.add.text(x, y, txt, { fontSize: '35px', backgroundColor: '#444', padding: 20 })
+            .setInteractive().setScrollFactor(0);
+        b.on('pointerdown', dn);
         if(up) b.on('pointerup', up).on('pointerout', up);
     };
 
-    addBtn(20, 340, ' ← ', () => moveLeft = true, () => moveLeft = false);
-    addBtn(140, 340, ' → ', () => moveRight = true, () => moveRight = false);
-    addBtn(550, 340, ' SALT ', () => { if(player.body.touching.down) player.setVelocityY(-550) });
-    addBtn(700, 340, ' FUEGO ', () => {
-        let b = bullets.create(player.x + 25, player.y, 'b');
-        b.body.allowGravity = false; b.setVelocityX(600);
-    });
-
+    addBtn(20, 330, ' ← ', () => moveLeft = true, () => moveLeft = false);
+    addBtn(150, 330, ' → ', () => moveRight = true, () => moveRight = false);
+    addBtn(600, 330, ' SALT ', () => { if(player.body.touching.down) player.setVelocityY(-550) });
+    
     cursors = this.input.keyboard.createCursorKeys();
 }
 
@@ -102,14 +75,6 @@ function update() {
     if (moveLeft || cursors.left.isDown) player.setVelocityX(-250);
     else if (moveRight || cursors.right.isDown) player.setVelocityX(250);
     else player.setVelocityX(0);
-
-    enemies.getChildren().forEach(e => {
-        let dist = Phaser.Math.Distance.Between(player.x, player.y, e.x, e.y);
-        if (dist < 400) {
-            if (player.x < e.x) e.setVelocityX(-e.getData('speed'));
-            else e.setVelocityX(e.getData('speed'));
-        }
-    });
 }
 </script>
 </body>
