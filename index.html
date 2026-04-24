@@ -1,97 +1,234 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0, viewport-fit=cover">
-    <title>Contra S26 Ultra Fix</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.60.0/phaser.min.js"></script>
-    <style>
-        body { margin: 0; background: #111; overflow: hidden; touch-action: none; display: flex; justify-content: center; align-items: center; height: 100vh; }
-        canvas { 
-            image-rendering: -moz-crisp-edges;
-            image-rendering: -webkit-optimize-contrast;
-            image-rendering: pixelated;
-            image-rendering: crisp-edges;
-            box-shadow: 0 0 20px rgba(0,0,0,0.5);
-        }
-        #btn-overlay { 
-            position: absolute; z-index: 99; background: #007bff; color: white; 
-            padding: 20px; border-radius: 10px; font-family: sans-serif; font-weight: bold;
-        }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Contra Mobile PRO</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/phaser/3.60.0/phaser.min.js"></script>
+
+<style>
+body { margin:0; background:#111; overflow:hidden; touch-action:none; }
+canvas { display:block; image-rendering:pixelated; }
+
+.control {
+    position:absolute;
+    width:70px; height:70px;
+    background:rgba(255,255,255,0.15);
+    border:2px solid rgba(255,255,255,0.4);
+    border-radius:50%;
+}
+
+#left { bottom:30px; left:30px; }
+#right { bottom:30px; left:110px; }
+#jump { bottom:30px; right:110px; }
+#fire { bottom:30px; right:30px; }
+
+#btn-overlay {
+    position:absolute;
+    z-index:99;
+    top:50%; left:50%;
+    transform:translate(-50%,-50%);
+    background:#007bff;
+    color:white;
+    padding:20px;
+    border-radius:10px;
+    font-weight:bold;
+}
+</style>
 </head>
+
 <body>
 
-    <div id="btn-overlay">INICIAR MISIÓN</div>
-    <div id="game-container"></div>
+<div id="btn-overlay">INICIAR MISIÓN</div>
+
+<div id="left" class="control"></div>
+<div id="right" class="control"></div>
+<div id="jump" class="control"></div>
+<div id="fire" class="control"></div>
+
+<div id="game-container"></div>
 
 <script>
 const startBtn = document.getElementById('btn-overlay');
 
 startBtn.onclick = () => {
-    startBtn.style.display = 'none';
-    
-    const config = {
-        type: Phaser.CANVAS, 
+    startBtn.remove();
+
+    new Phaser.Game({
+        type: Phaser.CANVAS,
         parent: 'game-container',
-        width: 800,
-        height: 450,
-        backgroundColor: '#000000',
-        render: {
-            pixelArt: true, // Evita que se vea borroso o con líneas
-            antialias: false,
-            transparent: false
-        },
+        width: window.innerWidth,
+        height: window.innerHeight,
+        resolution: window.devicePixelRatio,
+        backgroundColor: '#000',
+
+        render: { pixelArt:true, antialias:false },
+
         scale: {
-            mode: Phaser.Scale.FIT, // Ajuste perfecto al ancho del S26
+            mode: Phaser.Scale.RESIZE,
             autoCenter: Phaser.Scale.CENTER_BOTH
         },
-        physics: {
-            default: 'arcade',
-            arcade: { gravity: { y: 1200 } }
-        },
-        scene: { preload: preload, create: create, update: update }
-    };
 
-    const game = new Phaser.Game(config);
+        physics: {
+            default:'arcade',
+            arcade:{ gravity:{ y:1200 } }
+        },
+
+        scene:{ preload, create, update }
+    });
 };
+
+let player, bullets, enemies;
+let controls = { left:false, right:false, jump:false, fire:false };
+let lastShot = 0;
 
 function preload() {
     let g = this.make.graphics();
-    // Jugador Azul
-    g.fillStyle(0x007bff); g.fillRect(0,0,30,45); g.generateTexture('p',30,45);
+
+    // jugador
+    g.fillStyle(0x007bff);
+    g.fillRect(0,0,30,45);
+    g.generateTexture('player',30,45);
+
     g.clear();
-    // Suelo Verde
-    g.fillStyle(0x2d5a27); g.fillRect(0,0,32,32); g.generateTexture('g',32,32);
+
+    // suelo
+    g.fillStyle(0x2d5a27);
+    g.fillRect(0,0,32,32);
+    g.generateTexture('ground',32,32);
+
+    g.clear();
+
+    // bala
+    g.fillStyle(0xffff00);
+    g.fillRect(0,0,10,4);
+    g.generateTexture('bullet',10,4);
+
+    g.clear();
+
+    // enemigo
+    g.fillStyle(0xff3b3b);
+    g.fillRect(0,0,30,40);
+    g.generateTexture('enemy',30,40);
 }
 
 function create() {
+    const width = this.scale.width;
+    const height = this.scale.height;
+
     let platforms = this.physics.add.staticGroup();
-    // Suelo sólido
-    for (let i = 0; i < 60; i++) {
-        platforms.create(i * 32, 435, 'g').refresh();
+
+    for (let i = 0; i < width; i += 32) {
+        platforms.create(i, height-16, 'ground').setOrigin(0,1).refreshBody();
     }
-    
-    this.player = this.physics.add.sprite(100, 300, 'p').setCollideWorldBounds(true);
-    this.physics.add.collider(this.player, platforms);
 
-    this.moveX = 0;
+    player = this.physics.add.sprite(100, height-100, 'player');
+    player.setCollideWorldBounds(true);
 
-    // Control táctil: Izquierda/Derecha para mover, arriba de la mitad para saltar
-    this.input.on('pointerdown', (p) => {
-        if (p.x < 400) {
-            this.moveX = (p.x < 200) ? -250 : 250;
-        } else {
-            if (this.player.body.touching.down) this.player.setVelocityY(-600);
+    bullets = this.physics.add.group();
+    enemies = this.physics.add.group();
+
+    this.physics.add.collider(player, platforms);
+    this.physics.add.collider(enemies, platforms);
+
+    // COLISIONES
+    this.physics.add.overlap(bullets, enemies, hitEnemy, null, this);
+    this.physics.add.collider(player, enemies, hitPlayer, null, this);
+
+    spawnEnemies(this);
+
+    setupControls();
+}
+
+// SPAWN ENEMIGOS
+function spawnEnemies(scene) {
+    const height = scene.scale.height;
+
+    for (let i = 0; i < 5; i++) {
+        let enemy = enemies.create(400 + i*120, height-100, 'enemy');
+        enemy.setVelocityX(Phaser.Math.Between(-100, 100));
+        enemy.setBounce(1,0);
+        enemy.setCollideWorldBounds(true);
+    }
+}
+
+// IA SIMPLE
+function update() {
+
+    // Movimiento jugador
+    if (controls.left) {
+        player.setVelocityX(-250);
+        player.flipX = true;
+    } else if (controls.right) {
+        player.setVelocityX(250);
+        player.flipX = false;
+    } else {
+        player.setVelocityX(0);
+    }
+
+    if (controls.jump && player.body.touching.down) {
+        player.setVelocityY(-600);
+    }
+
+    if (controls.fire) shoot(this);
+
+    // IA enemigos
+    enemies.children.iterate(enemy => {
+        if (!enemy) return;
+
+        // si se detiene, cambiar dirección
+        if (enemy.body.velocity.x === 0) {
+            enemy.setVelocityX(Phaser.Math.Between(-100,100));
         }
     });
-
-    this.input.on('pointerup', () => this.moveX = 0);
 }
 
-function update() {
-    this.player.setVelocityX(this.moveX);
+// DISPARO
+function shoot(scene) {
+    const now = scene.time.now;
+    if (now - lastShot < 250) return;
+
+    lastShot = now;
+
+    let bullet = bullets.create(player.x, player.y, 'bullet');
+    bullet.setVelocityX(player.flipX ? -500 : 500);
+}
+
+// COLISIONES
+function hitEnemy(bullet, enemy) {
+    bullet.destroy();
+    enemy.destroy();
+}
+
+function hitPlayer(player, enemy) {
+    // pequeño empujón
+    player.setVelocityY(-300);
+    player.setVelocityX(enemy.x < player.x ? 200 : -200);
+}
+
+// CONTROLES
+function setupControls() {
+    const map = [
+        { id:'left', key:'left' },
+        { id:'right', key:'right' },
+        { id:'jump', key:'jump' },
+        { id:'fire', key:'fire' }
+    ];
+
+    map.forEach(btn => {
+        const el = document.getElementById(btn.id);
+
+        el.addEventListener('touchstart', e => {
+            e.preventDefault();
+            controls[btn.key] = true;
+        });
+
+        el.addEventListener('touchend', () => controls[btn.key] = false);
+        el.addEventListener('touchcancel', () => controls[btn.key] = false);
+    });
 }
 </script>
+
 </body>
 </html>
